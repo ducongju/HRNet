@@ -16,6 +16,7 @@ import torch.nn as nn
 
 
 BN_MOMENTUM = 0.1
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +34,7 @@ class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)     # 默认 momentum = 0.1
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
@@ -43,11 +44,12 @@ class BasicBlock(nn.Module):
     def forward(self, x):
         residual = x
 
-        out = self.conv1(x)
+        # 由于我们的规范化操作会对减去均值，因此，偏置项b可以被忽略掉或可以被置为0
+        out = self.conv1(x)     # inplanes, planes, kernel_size=3, stride=1, padding=1, bias=False
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out)
+        out = self.conv2(out)   # planes, planes, kernel_size=3, stride=1, padding=1, bias=False
         out = self.bn2(out)
 
         if self.downsample is not None:
@@ -80,15 +82,14 @@ class Bottleneck(nn.Module):
     def forward(self, x):
         residual = x
 
-        out = self.conv1(x)
-        out = self.bn1(out)
+        out = self.conv1(x)     # inplanes, planes, kernel_size=1, stride=1, padding=0, bias=False
         out = self.relu(out)
 
-        out = self.conv2(out)
+        out = self.conv2(out)   # planes, planes, kernel_size=3, stride=1, padding=1, bias=False
         out = self.bn2(out)
         out = self.relu(out)
 
-        out = self.conv3(out)
+        out = self.conv3(out)   # planes, planes * expansion, kernel_size=1, stride=2, padding=0, bias=False
         out = self.bn3(out)
 
         if self.downsample is not None:
@@ -191,6 +192,17 @@ class PoseResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        """
+        resnet34
+        layer1 = 3: 64, 3*3, stride=1       64, 3*3, stride=1
+                    64, 3*3, stride=1       64, 3*3, stride=1       repeat 2
+        layer2 = 4: 128, 3*3, stride=2      128, 3*3, stride=1
+                    128, 3*3, stride=1      128, 3*3, stride=1      repeat 3
+        layer3 = 6: 256, 3*3, stride=2      256, 3*3, stride=1
+                    256, 3*3, stride=1      256, 3*3, stride=1      repeat 5
+        layer4 = 3: 512, 3*3, stride=2      512, 3*3, stride=1
+                    512, 3*3, stride=1      512, 3*3, stride=1      repeat 2
+        """
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -204,13 +216,34 @@ class PoseResNet(nn.Module):
         x = self.deconv_layers(x)
         x = self.final_layer(x)
 
+        """
+        res50_256x192_d256x3_adam_lr1e-3.yaml (resnet50):
+        
+        conv1:          64, 7*7, stride=2
+        maxpool:        64, 3*3, stride=2
+        layer1 = 3:     64, 3*3, stride=1       64, 1*1, stride=1       256, 3*3, stride=1
+                        64, 3*3, stride=1       64, 1*1, stride=1       256, 3*3, stride=1       repeat 2
+        layer2 = 4:     128, 3*3, stride=2      128, 1*1, stride=1      512, 3*3, stride=1
+                        128, 3*3, stride=1      128, 1*1, stride=1      512, 3*3, stride=1       repeat 3
+        layer3 = 6:     256, 3*3, stride=2      256, 1*1, stride=1      1024, 3*3, stride=1
+                        256, 3*3, stride=1      256, 1*1, stride=1      1024, 3*3, stride=1      repeat 5
+        layer4 = 3:     512, 3*3, stride=2      512, 1*1, stride=1      2048, 3*3, stride=1
+                        512, 3*3, stride=1      512, 1*1, stride=1      2048, 3*3, stride=1      repeat 2
+        deconv_layers:  (2048), 256, 4*4, stride=2
+                        256, 4*4, stride=2
+                        256, 4*4, stride=2
+        final_layer:    17, 1*1, stride=1
+        """
+
         return x
 
+    # 权重初始化，并记录日志
     def init_weights(self, pretrained=''):
-        if os.path.isfile(pretrained):
+        # 如果有Imagenet预训练模型, 加载并初始化后半部分，否则全部参数进行初始化
+        if os.path.isfile(pretrained):  # 判断某一对象(需提供绝对路径)是否为文件
             logger.info('=> init deconv weights from normal distribution')
-            for name, m in self.deconv_layers.named_modules():
-                if isinstance(m, nn.ConvTranspose2d):
+            for name, m in self.deconv_layers.named_modules():  # 在网络中的所有模块上返回一个迭代器，同时产生模块的名称和模块本身
+                if isinstance(m, nn.ConvTranspose2d):   # 判断一个对象是否是一个已知的类型
                     logger.info('=> init {}.weight as normal(0, 0.001)'.format(name))
                     logger.info('=> init {}.bias as 0'.format(name))
                     nn.init.normal_(m.weight, std=0.001)
@@ -230,9 +263,9 @@ class PoseResNet(nn.Module):
                     nn.init.normal_(m.weight, std=0.001)
                     nn.init.constant_(m.bias, 0)
 
-            pretrained_state_dict = torch.load(pretrained)
+            pretrained_state_dict = torch.load(pretrained)  # 解序列化一个pickled对象并加载到内存当中
             logger.info('=> loading pretrained model {}'.format(pretrained))
-            self.load_state_dict(pretrained_state_dict, strict=False)
+            self.load_state_dict(pretrained_state_dict, strict=False)   # 加载一个解序列化的state_dict对象
         else:
             logger.info('=> init weights from normal distribution')
             for m in self.modules():
@@ -259,13 +292,13 @@ resnet_spec = {
 
 
 def get_pose_net(cfg, is_train, **kwargs):
-    num_layers = cfg.MODEL.EXTRA.NUM_LAYERS
+    num_layers = cfg.MODEL.EXTRA.NUM_LAYERS          # 50
 
     block_class, layers = resnet_spec[num_layers]
 
     model = PoseResNet(block_class, layers, cfg, **kwargs)
 
-    if is_train and cfg.MODEL.INIT_WEIGHTS:
-        model.init_weights(cfg.MODEL.PRETRAINED)
+    if is_train and cfg.MODEL.INIT_WEIGHTS:         # True
+        model.init_weights(cfg.MODEL.PRETRAINED)    # 'models/pytorch/imagenet/resnet50-19c8e357.pth'
 
     return model
