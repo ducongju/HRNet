@@ -18,14 +18,33 @@ from scipy.io import loadmat, savemat
 
 from dataset.JointsDataset import JointsDataset
 
-
 logger = logging.getLogger(__name__)
 
 
 class MPIIDataset(JointsDataset):
+    """
+    { 0 - r ankle,
+    1 - r knee,
+    2 - r hip,
+    3 - l hip,
+    4 - l knee,
+    5 - l ankle,
+    6 - pelvis,
+    7 - thorax,
+    8 - upper neck,
+    9 - head top,
+    10 - r wrist,
+    11 - r elbow,
+    12 - r shoulder,
+    13 - l shoulder,
+    14 - l elbow,
+    15 - l wrist }
+    """
+
     def __init__(self, cfg, root, image_set, is_train, transform=None):
         super().__init__(cfg, root, image_set, is_train, transform)
 
+        # 示意图见mpii.vsdx
         self.num_joints = 16
         self.flip_pairs = [[0, 5], [1, 4], [2, 3], [10, 15], [11, 14], [12, 13]]
         self.parent_ids = [1, 2, 6, 6, 3, 4, 6, 6, 7, 8, 11, 12, 7, 7, 13, 14]
@@ -42,12 +61,17 @@ class MPIIDataset(JointsDataset):
 
     def _get_db(self):
         # create train/val split
+        # 分别处理训练子集/验证子集/测试子集，格式见mpii_test.json
         file_name = os.path.join(
-            self.root, 'annot', self.image_set+'.json'
+            self.root, 'annot', self.image_set + '.json'
         )
         with open(file_name) as anno_file:
             anno = json.load(anno_file)
 
+        # image: 图像名
+        # center: 图中人体的大致中心位置
+        # scale: 人体尺度（相对于200像素）
+        # 详见mpii_README.md
         gt_db = []
         for a in anno:
             image_name = a['image']
@@ -56,16 +80,19 @@ class MPIIDataset(JointsDataset):
             s = np.array([a['scale'], a['scale']], dtype=np.float)
 
             # Adjust center/scale slightly to avoid cropping limbs
+            # 太高人体中心位置，放大人体尺度，避免裁剪到边缘
             if c[0] != -1:
                 c[1] = c[1] + 15 * s[1]
                 s = s * 1.25
 
             # MPII uses matlab format, index is based 1,
             # we should first convert to 0-based index
+            # matlab格式的角标是以1开头的
             c = c - 1
 
+            # TODO 为什么要增加一维0
             joints_3d = np.zeros((self.num_joints, 3), dtype=np.float)
-            joints_3d_vis = np.zeros((self.num_joints,  3), dtype=np.float)
+            joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
             if self.image_set != 'test':
                 joints = np.array(a['joints'])
                 joints[:, 0:2] = joints[:, 0:2] - 1
@@ -111,15 +138,18 @@ class MPIIDataset(JointsDataset):
                                'annot',
                                'gt_{}.mat'.format(cfg.DATASET.TEST_SET))
         gt_dict = loadmat(gt_file)
-        dataset_joints = gt_dict['dataset_joints']
-        jnt_missing = gt_dict['jnt_missing']
-        pos_gt_src = gt_dict['pos_gt_src']
-        headboxes_src = gt_dict['headboxes_src']
+        dataset_joints = gt_dict['dataset_joints']  # 关节名 1*16 cell, 一个cell是一个关节名, 返回{ndarray: (1, 16)}
+        jnt_missing = gt_dict['jnt_missing']  # 是否未标注关节 16*2958 double
+        pos_gt_src = gt_dict['pos_gt_src']  # 实际关节位置 16*2*2958 double
+        headboxes_src = gt_dict['headboxes_src']  # 边界框位置 2*2*2958 double
 
-        pos_pred_src = np.transpose(preds, [1, 2, 0])
+        # batch*num_joints*coordinate变为对应于.mat格式
+        pos_pred_src = np.transpose(preds, [1, 2, 0])  # 预测关节位置 16*2*2958 double
 
-        head = np.where(dataset_joints == 'head')[1][0]
-        lsho = np.where(dataset_joints == 'lsho')[1][0]
+
+        # 提取角标
+        head = np.where(dataset_joints == 'head')[1][0]  # 返回{tuple: 2}
+        lsho = np.where(dataset_joints == 'lsho')[1][0]  # 返回{int64}:9
         lelb = np.where(dataset_joints == 'lelb')[1][0]
         lwri = np.where(dataset_joints == 'lwri')[1][0]
         lhip = np.where(dataset_joints == 'lhip')[1][0]
@@ -133,9 +163,11 @@ class MPIIDataset(JointsDataset):
         rank = np.where(dataset_joints == 'rank')[1][0]
         rhip = np.where(dataset_joints == 'rhip')[1][0]
 
-        jnt_visible = 1 - jnt_missing
+        jnt_visible = 1 - jnt_missing  # 是否标注了关节
         uv_error = pos_pred_src - pos_gt_src
-        uv_err = np.linalg.norm(uv_error, axis=1)
+        # linalg=linear（线性）+algebra（代数）, norm则表示范数
+        # x_norm=np.linalg.norm(x, ord=None, axis=None, keepdims=False)
+        uv_err = np.linalg.norm(uv_error, axis=1)  # 默认2范数
         headsizes = headboxes_src[1, :, :] - headboxes_src[0, :, :]
         headsizes = np.linalg.norm(headsizes, axis=0)
         headsizes *= SC_BIAS
@@ -145,17 +177,17 @@ class MPIIDataset(JointsDataset):
         jnt_count = np.sum(jnt_visible, axis=1)
         less_than_threshold = np.multiply((scaled_uv_err <= threshold),
                                           jnt_visible)
-        PCKh = np.divide(100.*np.sum(less_than_threshold, axis=1), jnt_count)
+        PCKh = np.divide(100. * np.sum(less_than_threshold, axis=1), jnt_count)
 
         # save
-        rng = np.arange(0, 0.5+0.01, 0.01)
+        rng = np.arange(0, 0.5 + 0.01, 0.01)
         pckAll = np.zeros((len(rng), 16))
 
         for r in range(len(rng)):
             threshold = rng[r]
             less_than_threshold = np.multiply(scaled_uv_err <= threshold,
                                               jnt_visible)
-            pckAll[r, :] = np.divide(100.*np.sum(less_than_threshold, axis=1),
+            pckAll[r, :] = np.divide(100. * np.sum(less_than_threshold, axis=1),
                                      jnt_count)
 
         PCKh = np.ma.array(PCKh, mask=False)

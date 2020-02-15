@@ -15,6 +15,13 @@ import os
 
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
+"""
+1. 以人类可读的格式存储和加载numpy数组。
+2. 存储和加载通用和定制的类实例。
+3. 将日期/时间存储并加载为字典（包括时区）。
+4. 使用OrderedDict保留地图顺序。
+5. 通过以＃开头的行来允许json文件中的注释。
+"""
 import json_tricks as json
 import numpy as np
 
@@ -23,6 +30,7 @@ from nms.nms import oks_nms
 from nms.nms import soft_oks_nms
 
 
+# TODO makefile用途是什么
 logger = logging.getLogger(__name__)
 
 
