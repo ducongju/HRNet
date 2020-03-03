@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 
 
+# 图片水平翻转
 def flip_back(output_flipped, matched_parts):
     '''
     ouput_flipped: numpy.ndarray(batch_size, num_joints, height, width)
@@ -19,8 +20,10 @@ def flip_back(output_flipped, matched_parts):
     assert output_flipped.ndim == 4,\
         'output_flipped should be [batch_size, num_joints, height, width]'
 
+    # 图片水平翻转
     output_flipped = output_flipped[:, :, :, ::-1]
 
+    # 翻转后对称关节标注信息对调
     for pair in matched_parts:
         tmp = output_flipped[:, pair[0], :, :].copy()
         output_flipped[:, pair[0], :, :] = output_flipped[:, pair[1], :, :]
@@ -29,14 +32,19 @@ def flip_back(output_flipped, matched_parts):
     return output_flipped
 
 
+# 关节水平翻转
 def fliplr_joints(joints, joints_vis, width, matched_parts):
     """
     flip coords
+    joints: numpy.ndarray(num_joints, 3)
+    joints_vis: numpy.ndarray(num_joints, 3)
     """
     # Flip horizontal
+    # 关节水平翻转
     joints[:, 0] = width - joints[:, 0] - 1
 
     # Change left-right parts
+    # 翻转后对称关节标注信息对调
     for pair in matched_parts:
         joints[pair[0], :], joints[pair[1], :] = \
             joints[pair[1], :], joints[pair[0], :].copy()

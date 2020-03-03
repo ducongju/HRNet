@@ -108,7 +108,7 @@ class COCODataset(JointsDataset):
                 1.5, 1.5, 1., 1., 1.2, 1.2, 1.5, 1.5
             ],
             dtype=np.float32
-        ).reshape((self.num_joints, 1))
+        ).reshape((self.num_joints, 1))  # TODO 处理细节: 不同关节设置不同权重
 
         self.db = self._get_db()
 

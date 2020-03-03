@@ -4,6 +4,14 @@
 # Written by Bin Xiao (Bin.Xiao@microsoft.com)
 # ------------------------------------------------------------------------------
 
+# python tools/train.py \
+#     --cfg experiments/coco/hrnet/w32_256x192_adam_lr1e-3.yaml \
+
+# __future__是python2的概念，其实是为了使用python2时能够去调用一些在python3中实现的特性
+# from __future__ import absolute_import: 声明后可以引用同名冲突的系统模块
+# from __future__ import division: 声明后除法为精确除法
+# from __future__ import print_function： 声明后print函数必须加括号
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -37,19 +45,28 @@ import dataset
 import models
 
 
+# 输入: 可选参数
+# 输出: 参数的解析
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
+    # 创建一个参数，如果参数名称前没有‘-’或‘--’则该参数为必填参数，如果程序运行时不给它赋值则程序将抛出异常。
+    # 创建一个‘--’参数，如果参数前有‘--’则为可选参数。在输入‘--参数’后再赋值。
+    # 创建一个‘-’参数，如果参数前有‘-’则为可选参数。在输入‘-参数’后再赋值。
+    # cfg: configure
     parser.add_argument('--cfg',
                         help='experiment configure file name',
                         required=True,
                         type=str)
 
+    # nargs关键字参数: 将一个动作与不同数目的命令行参数关联在一起
+    # nargs=argparse.REMAINDER: 所有剩余的参数，均转化为一个列表赋值给此项，通常用此方法来将剩余的参数传入另一个parser进行解析。
     parser.add_argument('opts',
                         help="Modify config options using the command-line",
                         default=None,
                         nargs=argparse.REMAINDER)
 
+    # TODO philly什么意思？
     # philly
     parser.add_argument('--modelDir',
                         help='model directory',
@@ -75,6 +92,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    # YACS是一个轻量级库，用于定义和管理系统配置，例如那些在为科学实验设计的软件中常见的配置。
+    # 这些“配置”通常涵盖诸如用于训练机器学习模型的超参数或可配置模型超参数（诸如卷积神经网络的深度）之类的概念。
     update_config(cfg, args)
 
     logger, final_output_dir, tb_log_dir = create_logger(
@@ -88,6 +107,7 @@ def main():
     torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
     torch.backends.cudnn.enabled = cfg.CUDNN.ENABLED
 
+    # eval(): 用来执行一个字符串表达式，并返回表达式的值
     model = eval('models.'+cfg.MODEL.NAME+'.get_pose_net')(
         cfg, is_train=True
     )
@@ -120,9 +140,13 @@ def main():
     ).cuda()
 
     # Data loading code
+    # 归一化数据
+    # ``input[channel] = (input[channel] - mean[channel]) / std[channel]``
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
     )
+
+    # 载入mpii数据集
     train_dataset = eval('dataset.'+cfg.DATASET.DATASET)(
         cfg, cfg.DATASET.ROOT, cfg.DATASET.TRAIN_SET, True,
         transforms.Compose([
@@ -182,11 +206,12 @@ def main():
     for epoch in range(begin_epoch, cfg.TRAIN.END_EPOCH):
         lr_scheduler.step()
 
+        # 调用core.function在训练集上训练:
         # train for one epoch
         train(cfg, train_loader, model, criterion, optimizer, epoch,
               final_output_dir, tb_log_dir, writer_dict)
 
-
+        # 调用core.function在验证集上验证:
         # evaluate on validation set
         perf_indicator = validate(
             cfg, valid_loader, valid_dataset, model, criterion,

@@ -19,6 +19,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 
+# 创建日志, 返回logger
 def create_logger(cfg, cfg_name, phase='train'):
     root_output_dir = Path(cfg.OUTPUT_DIR)
     # set up logger
@@ -49,7 +50,7 @@ def create_logger(cfg, cfg_name, phase='train'):
     logging.getLogger('').addHandler(console)
 
     tensorboard_log_dir = Path(cfg.LOG_DIR) / dataset / model / \
-        (cfg_name + '_' + time_str)
+                          (cfg_name + '_' + time_str)
 
     print('=> creating {}'.format(tensorboard_log_dir))
     tensorboard_log_dir.mkdir(parents=True, exist_ok=True)
@@ -57,6 +58,7 @@ def create_logger(cfg, cfg_name, phase='train'):
     return logger, str(final_output_dir), str(tensorboard_log_dir)
 
 
+# 根据模式选择优化方案, 返回optimizer
 def get_optimizer(cfg, model):
     optimizer = None
     if cfg.TRAIN.OPTIMIZER == 'sgd':
@@ -76,6 +78,7 @@ def get_optimizer(cfg, model):
     return optimizer
 
 
+# 保存模型为.pth文件
 def save_checkpoint(states, is_best, output_dir,
                     filename='checkpoint.pth'):
     torch.save(states, os.path.join(output_dir, filename))
@@ -84,6 +87,7 @@ def save_checkpoint(states, is_best, output_dir,
                    os.path.join(output_dir, 'model_best.pth'))
 
 
+# TODO
 def get_model_summary(model, *input_tensors, item_length=26, verbose=False):
     """
     :param model:
@@ -101,6 +105,7 @@ def get_model_summary(model, *input_tensors, item_length=26, verbose=False):
 
     def add_hooks(module):
 
+        # noinspection PyArgumentList,PyArgumentList
         def hook(module, input, output):
             class_name = str(module.__class__.__name__)
 
@@ -116,17 +121,17 @@ def get_model_summary(model, *input_tensors, item_length=26, verbose=False):
             params = 0
 
             if class_name.find("Conv") != -1 or class_name.find("BatchNorm") != -1 or \
-               class_name.find("Linear") != -1:
+                    class_name.find("Linear") != -1:
                 for param_ in module.parameters():
                     params += param_.view(-1).size(0)
 
             flops = "Not Available"
             if class_name.find("Conv") != -1 and hasattr(module, "weight"):
                 flops = (
-                    torch.prod(
-                        torch.LongTensor(list(module.weight.data.size()))) *
-                    torch.prod(
-                        torch.LongTensor(list(output.size())[2:]))).item()
+                        torch.prod(
+                            torch.LongTensor(list(module.weight.data.size()))) *
+                        torch.prod(
+                            torch.LongTensor(list(output.size())[2:]))).item()
             elif isinstance(module, nn.Linear):
                 flops = (torch.prod(torch.LongTensor(list(output.size()))) \
                          * input[0].size(1)).item()
@@ -146,8 +151,8 @@ def get_model_summary(model, *input_tensors, item_length=26, verbose=False):
             )
 
         if not isinstance(module, nn.ModuleList) \
-           and not isinstance(module, nn.Sequential) \
-           and module != model:
+                and not isinstance(module, nn.Sequential) \
+                and module != model:
             hooks.append(module.register_forward_hook(hook))
 
     model.eval()
@@ -162,14 +167,14 @@ def get_model_summary(model, *input_tensors, item_length=26, verbose=False):
     details = ''
     if verbose:
         details = "Model Summary" + \
-            os.linesep + \
-            "Name{}Input Size{}Output Size{}Parameters{}Multiply Adds (Flops){}".format(
-                ' ' * (space_len - len("Name")),
-                ' ' * (space_len - len("Input Size")),
-                ' ' * (space_len - len("Output Size")),
-                ' ' * (space_len - len("Parameters")),
-                ' ' * (space_len - len("Multiply Adds (Flops)"))) \
-                + os.linesep + '-' * space_len * 5 + os.linesep
+                  os.linesep + \
+                  "Name{}Input Size{}Output Size{}Parameters{}Multiply Adds (Flops){}".format(
+                      ' ' * (space_len - len("Name")),
+                      ' ' * (space_len - len("Input Size")),
+                      ' ' * (space_len - len("Output Size")),
+                      ' ' * (space_len - len("Parameters")),
+                      ' ' * (space_len - len("Multiply Adds (Flops)"))) \
+                  + os.linesep + '-' * space_len * 5 + os.linesep
 
     params_sum = 0
     flops_sum = 0
@@ -189,13 +194,14 @@ def get_model_summary(model, *input_tensors, item_length=26, verbose=False):
                 ' ' * (space_len - len(str(layer.num_parameters))),
                 layer.multiply_adds,
                 ' ' * (space_len - len(str(layer.multiply_adds)))) \
-                + os.linesep + '-' * space_len * 5 + os.linesep
+                       + os.linesep + '-' * space_len * 5 + os.linesep
 
     details += os.linesep \
-        + "Total Parameters: {:,}".format(params_sum) \
-        + os.linesep + '-' * space_len * 5 + os.linesep
-    details += "Total Multiply Adds (For Convolution and Linear Layers only): {:,} GFLOPs".format(flops_sum/(1024**3)) \
-        + os.linesep + '-' * space_len * 5 + os.linesep
+               + "Total Parameters: {:,}".format(params_sum) \
+               + os.linesep + '-' * space_len * 5 + os.linesep
+    details += "Total Multiply Adds (For Convolution and Linear Layers only): {:,} GFLOPs".format(
+        flops_sum / (1024 ** 3)) \
+               + os.linesep + '-' * space_len * 5 + os.linesep
     details += "Number of Layers" + os.linesep
     for layer in layer_instances:
         details += "{} : {} layers   ".format(layer, layer_instances[layer])

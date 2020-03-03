@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 
 
+# 关节点相加做平均，认为每个关节点的损失是一样的
 class JointsMSELoss(nn.Module):
     def __init__(self, use_target_weight):
         super(JointsMSELoss, self).__init__()
@@ -21,11 +22,14 @@ class JointsMSELoss(nn.Module):
     def forward(self, output, target, target_weight):
         batch_size = output.size(0)
         num_joints = output.size(1)
+        # TODO split(1, 1): 是什么意思
+        # heatmaps: numpy.ndarray([batch_size, num_joints, height, width])
         heatmaps_pred = output.reshape((batch_size, num_joints, -1)).split(1, 1)
         heatmaps_gt = target.reshape((batch_size, num_joints, -1)).split(1, 1)
         loss = 0
 
         for idx in range(num_joints):
+            # squeeze(): 移除数组中维度为1的维度
             heatmap_pred = heatmaps_pred[idx].squeeze()
             heatmap_gt = heatmaps_gt[idx].squeeze()
             if self.use_target_weight:
@@ -39,6 +43,8 @@ class JointsMSELoss(nn.Module):
         return loss / num_joints
 
 
+# ohkm（Online Hard Keypoints Mining）在线困难关键点挖掘:
+# 只取损失最大的前八个关节点作为损失，除以八
 class JointsOHKMMSELoss(nn.Module):
     def __init__(self, use_target_weight, topk=8):
         super(JointsOHKMMSELoss, self).__init__()
