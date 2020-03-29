@@ -62,6 +62,7 @@ class JointsDataset(Dataset):
     def evaluate(self, cfg, preds, output_dir, *args, **kwargs):
         raise NotImplementedError
 
+    # 将全身图片变换为半身图片
     def half_body_transform(self, joints, joints_vis):
         upper_joints = []
         lower_joints = []

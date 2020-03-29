@@ -16,6 +16,7 @@ import os
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 """
+json文件:
 1. 以人类可读的格式存储和加载numpy数组。
 2. 存储和加载通用和定制的类实例。
 3. 将日期/时间存储并加载为字典（包括时区）。

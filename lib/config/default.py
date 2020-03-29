@@ -23,7 +23,7 @@ YACS使用YAML作为简单的，人类可读的序列化格式。
 """
 from yacs.config import CfgNode as CN
 
-
+# 设置默认配置参数
 _C = CN()               # 创建一个配置节点_C
 
 _C.OUTPUT_DIR = ''      # 在_C下创建新的配置节点
@@ -133,6 +133,7 @@ _C.DEBUG.SAVE_HEATMAPS_GT = False
 _C.DEBUG.SAVE_HEATMAPS_PRED = False
 
 
+# 根据手工输入的参数更新配置文件中的参数
 def update_config(cfg, args):
     cfg.defrost()
     cfg.merge_from_file(args.cfg)

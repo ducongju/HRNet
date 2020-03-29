@@ -94,7 +94,7 @@ def main():
     args = parse_args()
     # YACS是一个轻量级库，用于定义和管理系统配置，例如那些在为科学实验设计的软件中常见的配置。
     # 这些“配置”通常涵盖诸如用于训练机器学习模型的超参数或可配置模型超参数（诸如卷积神经网络的深度）之类的概念。
-    update_config(cfg, args)
+    update_config(cfg, args)  # 根据手工输入的参数更新配置文件中的参数
 
     logger, final_output_dir, tb_log_dir = create_logger(
         cfg, args.cfg, 'train')
