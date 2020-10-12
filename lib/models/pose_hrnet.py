@@ -294,19 +294,20 @@ class HighResolutionModule(nn.Module):
         # ｘ表示每个分支输入的特征，如果有两个分支，则ｘ就是一个二维数组，x[0]和x[1]就是两个输入分支的特征
         # 如果这个stage只有一个branch，利用_make_branches函数生成branch，不做任何融合
         if self.num_branches == 1:
-            return [self.branches[0](x[0])]
+            return [self.branches[0](x[0])]  # 特征图x[0]只过一个branch
 
         # 如果有多个分支，先对每个分支都先用_make_branch函数生成主特征网络
         for i in range(self.num_branches):
-            x[i] = self.branches[i](x[i])
+            x[i] = self.branches[i](x[i])  # 当前branch x[i]过了branch[i]
 
         x_fuse = []
 
-        # 然后利用_make_fuse_layers函数，进行特征融合
+        # j融合前的branch序号, i融合后的branch序号
+        # 把所有branch加一起
         for i in range(len(self.fuse_layers)):
-            y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
+            y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])  # i=0时, 直接赋值, 因为返回的是NONE
             for j in range(1, self.num_branches):
-                # fuse操作为相加
+                # fuse操作为SUM, 而不是concat
                 if i == j:
                     y = y + x[j]
                 else:
@@ -387,7 +388,7 @@ class PoseHighResolutionNet(nn.Module):
     def _make_transition_layer(
             self, num_channels_pre_layer, num_channels_cur_layer):
         num_branches_cur = len(num_channels_cur_layer)      # 这个stage对应的branch数
-        num_branches_pre = len(num_channels_pre_layer)
+        num_branches_pre = len(num_channels_pre_layer)      # 上个stage对应的branch数
 
         transition_layers = []
         for i in range(num_branches_cur):
