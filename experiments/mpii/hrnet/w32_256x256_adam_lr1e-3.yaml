@@ -22,6 +22,12 @@ DATASET:
   SCALE_FACTOR: 0.25
   TEST_SET: valid
   TRAIN_SET: train
+  ######################### SCALE ###########################
+  SCALE_AWARE_SIGMA: True
+  BASE_INTRASIZE: 0.062
+  BASE_INTRASIGMA: 2
+  INTRA_CUT: True
+  ######################### SCALE ###########################
 MODEL:
   INIT_WEIGHTS: true
   NAME: pose_hrnet

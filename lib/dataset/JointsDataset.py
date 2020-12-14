@@ -56,6 +56,13 @@ class JointsDataset(Dataset):
         self.transform = transform
         self.db = []
 
+        #######################################################################
+        self.scale_aware_sigma = cfg.DATASET.SCALE_AWARE_SIGMA
+        self.base_intrasize = cfg.DATASET.BASE_INTRASIZE
+        self.base_intrasigma = cfg.DATASET.BASE_INTRASIGMA
+        self.intra_cut = cfg.DATASET.INTRA_CUT
+        #######################################################################
+
     def _get_db(self):
         raise NotImplementedError
 
@@ -249,9 +256,28 @@ class JointsDataset(Dataset):
                                self.heatmap_size[0]),
                               dtype=np.float32)
 
+            ###########################  人体内部尺度  ################################
+            if self.scale_aware_sigma:
+                intrasigma = np.ones(16)
+                intrasize = np.array([.089, .087, .107, .107, .087, .089, .1, .1, .1,
+                             .026, .062, .072, .079, .079, .072, .062])
+                # 截断设置
+                if self.intra_cut:
+                    for j in range(16):
+                        if self.base_intrasize > intrasize[j]:
+                            intrasize[j] = self.base_intrasize             
+                intrasigma = intrasize / self.base_intrasize * self.base_intrasigma
+            ###########################  人体内部尺度  ################################
+            
             tmp_size = self.sigma * 3
 
             for joint_id in range(self.num_joints):
+
+                ###############################
+                if self.scale_aware_sigma:
+                    tmp_size = intrasigma[joint_id]
+                ###############################
+
                 feat_stride = self.image_size / self.heatmap_size
                 mu_x = int(joints[joint_id][0] / feat_stride[0] + 0.5)
                 mu_y = int(joints[joint_id][1] / feat_stride[1] + 0.5)
